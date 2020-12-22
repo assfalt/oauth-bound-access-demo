@@ -24,14 +24,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 
+// discover function automatically populate the Issuer object with required information to complete OIDC and OAuth flows
+// you can include full .well-known URI or the issuer base path
 Issuer.discover('https://auth.myexample.com:8443/oauth/v2/oauth-anonymous/.well-known/openid-configuration') // => Promise
     .then(function (issuer) {
         console.log('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
 
-
+// Set keys and cert for Client Certificate authentication 
 const key = `Add Key`;
-
-
 const cert = `Add Cert`;
 
 
