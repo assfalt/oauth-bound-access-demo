@@ -24,51 +24,57 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 
+
+// Discover the Authorization Server
+// This procedure populate an Issuer object
 Issuer.discover('https://auth.myexample.com:8443/oauth/v2/oauth-anonymous/.well-known/openid-configuration') // => Promise
     .then(function (issuer) {
         console.log('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
+        logger.debug('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
 
-const key = Buffer.from(process.env.privatekey,'base64').toString('ascii');
-const cert = Buffer.from(process.env.cert,'base64').toString('ascii');
+        // Fetch the key pair (should be base64 encoded)
+        const key = Buffer.from(process.env.mtls_privatekey,'base64').toString('ascii');
+        const cert = Buffer.from(process.env.mtls_cert,'base64').toString('ascii');
 
         var client = new issuer.Client({
-        client_id: 'test12',
-          token_endpoint_auth_method: 'tls_client_auth',
-          tls_client_certificate_bound_access_tokens: true,
-        redirect_uris: ['http://localhost:3000/auth/callback'],
-      });
-      client[custom.http_options] = (opts) => ({ ...opts, https: { key, certificate: cert } });
+            client_id: process.env.mtls_clientid,
+            token_endpoint_auth_method: 'tls_client_auth',
+            tls_client_certificate_bound_access_tokens: true,
+            redirect_uris: [process.env.mtls_redirecturi],
+        });
+        // Set Client Certificate
+        client[custom.http_options] = (opts) => ({ ...opts, https: { key, certificate: cert } });
 
-      app.use(
-          expressSesssion({
-            secret: 'keyboard cat',
-            resave: false,
-            saveUninitialized: true
-          })
-      );
+        app.use(
+            expressSesssion({
+                secret: process.env.session_secret,
+                resave: false,
+                saveUninitialized: true
+            })
+        );
 
-      app.use(passport.initialize());
-      app.use(passport.session());
+        app.use(passport.initialize());
+        app.use(passport.session());
 
-      passport.use(
-          'oidc',
-          new Strategy({ client }, (tokenSet, done) => {
-            return done(null, tokenSet.claims());
-          })
-      );
+        passport.use(
+            'oidc',
+            new Strategy({ client }, (tokenSet, done) => {
+                return done(null, tokenSet.claims());
+            })
+        );
 
-      // handles serialization and deserialization of authenticated user
-      passport.serializeUser(function(user, done) {
-        done(null, user);
-      });
-      passport.deserializeUser(function(user, done) {
-        done(null, user);
-      });
+        // handles serialization and deserialization of authenticated user
+        passport.serializeUser(function(user, done) {
+            done(null, user);
+        });
+        passport.deserializeUser(function(user, done) {
+            done(null, user);
+        });
 
-      // start authentication request
-      app.get('/auth', (req, res, next) => {
-        passport.authenticate('oidc')(req, res, next);
-      });
+        // start authentication request
+        app.get('/auth', (req, res, next) => {
+            passport.authenticate('oidc')(req, res, next);
+        });
 
         // authentication callback
         app.get('/auth/callback', (req, res, next) => {
@@ -78,68 +84,67 @@ const cert = Buffer.from(process.env.cert,'base64').toString('ascii');
             })(req, res, next);
         });
 
-      // authentication callback
-      /*app.get('/auth/callback',
-          function (req, res, next) {
-              // call passport authentication passing the "local" strategy name and a callback function
-              passport.authenticate('oidc', function (error, user, info) {
-                  // this will execute in any case, even if a passport strategy will find an error
-                  // log everything to console
-                  console.log(error);
-                  console.log(user);
-                  console.log(info);
+        // - used for debug the auth response - authentication callback
+        /*app.get('/auth/callback',
+            function (req, res, next) {
+                // call passport authentication passing the "local" strategy name and a callback function
+                passport.authenticate('oidc', function (error, user, info) {
+                    // this will execute in any case, even if a passport strategy will find an error
+                    // log everything to console
+                    console.log(error);
+                    console.log(user);
+                    console.log(info);
 
-                  if (error) {
-                      res.status(401).send(error);
-                  } else if (!user) {
-                      res.status(401).send(info);
-                  } else {
-                      next();
-                  }
+                    if (error) {
+                        res.status(401).send(error);
+                    } else if (!user) {
+                        res.status(401).send(info);
+                    } else {
+                        next();
+                    }
 
-                  res.status(401).send(info);
-              })(req, res);
-          },
+                    res.status(401).send(info);
+                })(req, res);
+            },
 
-          // function to call once successfully authenticated
-          function (req, res) {
-              res.status(200).send('logged in!');
-          });
+            // function to call once successfully authenticated
+            function (req, res) {
+                res.status(200).send('logged in!');
+            });
 
-*/
-      app.use('/users', usersRouter);
-      // start logout request
-      app.get('/logout', (req, res) => {
-        res.redirect(client.endSessionUrl());
-      });
+      */
+        // protected resource
+        app.use('/users', usersRouter);
 
-      // logout callback
-      app.get('/logout/callback', (req, res) => {
-        // clears the persisted user from the local storage
-        req.logout();
-        // redirects the user to a public route
-        res.redirect('/');
-      });
+        // start logout request
+        app.get('/logout', (req, res) => {
+            res.redirect(client.endSessionUrl());
+        });
 
-
-      // do the rest of setup here
-
+        // logout callback
+        app.get('/logout/callback', (req, res) => {
+            // clears the persisted user from the local storage
+            req.logout();
+            // redirects the user to a public route
+            res.redirect('/');
+        });
+        
 
 // catch 404 and forward to error handler
-      app.use(function (req, res, next) {
-        next(createError(404));
-      });
+        app.use(function (req, res, next) {
+            next(createError(404));
+        });
 
 // error handler
-      app.use(function (err, req, res, next) {
-        // set locals, only providing error in development
-        res.locals.message = err.message;
-        res.locals.error = req.app.get('env') === 'development' ? err : {};
+        app.use(function (err, req, res, next) {
+            // set locals, only providing error in development
+            res.locals.message = err.message;
+            res.locals.error = req.app.get('env') === 'development' ? err : {};
 
-        // render the error page
-        res.status(err.status || 500);
-        res.render('error');
-      });
+            // render the error page
+            res.status(err.status || 500);
+            res.render('error');
+        });
 
 
     });
