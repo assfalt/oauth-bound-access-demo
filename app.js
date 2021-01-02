@@ -32,6 +32,7 @@ custom.setHttpOptionsDefaults({
             (options) => {
                 console.log('--> %s %s', options.method.toUpperCase(), options.url.href);
                 console.log('--> HEADERS %o', options.headers);
+                console.log('--> MTLS %o', options.https)
                 if (options.body) {
                     console.log('--> BODY %s', options.body);
                 }
@@ -66,7 +67,6 @@ Issuer.discover(process.env.oauth_wellknown) // => Promise
             token_endpoint_auth_method: 'tls_client_auth',
             tls_client_certificate_bound_access_tokens: true,
             redirect_uris: [process.env.oauth_redirecturi],
-            scope: "openid profile"
         });
         // Set Client Certificate
         client[custom.http_options] = (opts) => ({ ...opts, https: { key, certificate: cert } });
@@ -82,10 +82,12 @@ Issuer.discover(process.env.oauth_wellknown) // => Promise
         app.use(passport.initialize());
         app.use(passport.session());
 
+
         passport.use(
             'oidc',
             new Strategy({ client }, (tokenSet, done) => {
-                return done(null, tokenSet.claims());
+                console.log("token set:" + tokenSet.access_token )
+                return done(null, tokenSet);
             })
         );
 
@@ -105,13 +107,13 @@ Issuer.discover(process.env.oauth_wellknown) // => Promise
         // authentication callback
         app.get('/auth/callback', (req, res, next) => {
             passport.authenticate('oidc', {
-                successRedirect: '/users',
+                successRedirect: '/token',
                 failureRedirect: '/'
             })(req, res, next);
         });
 
         // protected resource
-        app.use('/users', usersRouter);
+        app.use('/token', usersRouter);
 
         // start logout request
         app.get('/logout', (req, res) => {
