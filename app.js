@@ -27,20 +27,20 @@ app.use('/', indexRouter);
 
 // Discover the Authorization Server
 // This procedure populate an Issuer object
-Issuer.discover('https://auth.myexample.com:8443/oauth/v2/oauth-anonymous/.well-known/openid-configuration') // => Promise
+Issuer.discover(process.env.oauth_wellknown) // => Promise
     .then(function (issuer) {
         console.log('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
-        logger.debug('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
+        logger('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
 
         // Fetch the key pair (should be base64 encoded)
         const key = Buffer.from(process.env.mtls_privatekey,'base64').toString('ascii');
         const cert = Buffer.from(process.env.mtls_cert,'base64').toString('ascii');
 
         var client = new issuer.Client({
-            client_id: process.env.mtls_clientid,
+            client_id: process.env.oauth_clientid,
             token_endpoint_auth_method: 'tls_client_auth',
             tls_client_certificate_bound_access_tokens: true,
-            redirect_uris: [process.env.mtls_redirecturi],
+            redirect_uris: [process.env.oauth_redirecturi],
         });
         // Set Client Certificate
         client[custom.http_options] = (opts) => ({ ...opts, https: { key, certificate: cert } });
@@ -128,7 +128,7 @@ Issuer.discover('https://auth.myexample.com:8443/oauth/v2/oauth-anonymous/.well-
             // redirects the user to a public route
             res.redirect('/');
         });
-        
+
 
 // catch 404 and forward to error handler
         app.use(function (req, res, next) {
