@@ -25,6 +25,31 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', indexRouter);
 
 
+// Full OIDC request debug
+custom.setHttpOptionsDefaults({
+    hooks: {
+        beforeRequest: [
+            (options) => {
+                console.log('--> %s %s', options.method.toUpperCase(), options.url.href);
+                console.log('--> HEADERS %o', options.headers);
+                if (options.body) {
+                    console.log('--> BODY %s', options.body);
+                }
+            },
+        ],
+        afterResponse: [
+            (response) => {
+                console.log('<-- %i FROM %s %s', response.statusCode, response.request.options.method.toUpperCase(), response.request.options.url.href);
+                console.log('<-- HEADERS %o', response.headers);
+                if (response.body) {
+                    console.log('<-- BODY %s', response.body);
+                }
+                return response;
+            },
+        ],
+    },
+});
+
 // Discover the Authorization Server
 // This procedure populate an Issuer object
 Issuer.discover(process.env.oauth_wellknown) // => Promise
@@ -41,6 +66,7 @@ Issuer.discover(process.env.oauth_wellknown) // => Promise
             token_endpoint_auth_method: 'tls_client_auth',
             tls_client_certificate_bound_access_tokens: true,
             redirect_uris: [process.env.oauth_redirecturi],
+            scope: "openid profile"
         });
         // Set Client Certificate
         client[custom.http_options] = (opts) => ({ ...opts, https: { key, certificate: cert } });
@@ -84,35 +110,6 @@ Issuer.discover(process.env.oauth_wellknown) // => Promise
             })(req, res, next);
         });
 
-        // - used for debug the auth response - authentication callback
-        /*app.get('/auth/callback',
-            function (req, res, next) {
-                // call passport authentication passing the "local" strategy name and a callback function
-                passport.authenticate('oidc', function (error, user, info) {
-                    // this will execute in any case, even if a passport strategy will find an error
-                    // log everything to console
-                    console.log(error);
-                    console.log(user);
-                    console.log(info);
-
-                    if (error) {
-                        res.status(401).send(error);
-                    } else if (!user) {
-                        res.status(401).send(info);
-                    } else {
-                        next();
-                    }
-
-                    res.status(401).send(info);
-                })(req, res);
-            },
-
-            // function to call once successfully authenticated
-            function (req, res) {
-                res.status(200).send('logged in!');
-            });
-
-      */
         // protected resource
         app.use('/users', usersRouter);
 
@@ -130,12 +127,12 @@ Issuer.discover(process.env.oauth_wellknown) // => Promise
         });
 
 
-// catch 404 and forward to error handler
+        // catch 404 and forward to error handler
         app.use(function (req, res, next) {
             next(createError(404));
         });
 
-// error handler
+        // error handler
         app.use(function (err, req, res, next) {
             // set locals, only providing error in development
             res.locals.message = err.message;
