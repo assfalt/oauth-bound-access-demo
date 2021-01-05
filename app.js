@@ -87,7 +87,7 @@ Issuer.discover(process.env.oauth_wellknown) // => Promise
             'oidc',
             new Strategy({ client }, (tokenSet, done) => {
                 console.log("token set:" + tokenSet.access_token )
-                return done(null, tokenSet);
+                return done(null, {claims:tokenSet.claims(),access_token:tokenSet.access_token});
             })
         );
 
@@ -107,13 +107,13 @@ Issuer.discover(process.env.oauth_wellknown) // => Promise
         // authentication callback
         app.get('/auth/callback', (req, res, next) => {
             passport.authenticate('oidc', {
-                successRedirect: '/token',
+                successRedirect: '/user',
                 failureRedirect: '/'
             })(req, res, next);
         });
 
-        // protected resource
-        app.use('/token', usersRouter);
+        // id_token claims and access token debug
+        app.use('/user', usersRouter);
 
         // start logout request
         app.get('/logout', (req, res) => {
